@@ -75,11 +75,4 @@ export class Cluster {
     }
     this.markers.length = 0;
   }
-
-  /**
-   * Get count and position as string.
-   */
-  public toString(): string {
-    return `${this.count} @ ${this.position}`;
-  }
 }
