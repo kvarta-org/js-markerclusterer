@@ -76,3 +76,30 @@ describe("pixelBoundsToLatLngBounds", () => {
     expect(bounds.extend).toHaveBeenCalledTimes(2);
   });
 });
+
+/*
+//TODO The test fails due to @googlemaps/jest-mocks not implementing getIcon()
+describe("compareMarkers", () => {
+  test("is correct", () => {
+    const m1 = new google.maps.Marker({
+      position: {
+        lat: 12,
+        lng: 34,
+      },
+      icon: {
+        url: "/dummy.png",
+      },
+    });
+    const m2 = new google.maps.Marker({
+      position: {
+        lat: 12,
+        lng: 34,
+      },
+      icon: {
+        url: "/dummy.png",
+      },
+    });
+    expect(markersEqual(m1, m2)).toBeTruthy();
+  });
+});
+ */
