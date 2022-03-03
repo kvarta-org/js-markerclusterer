@@ -36,7 +36,7 @@ const mapOptions = {
 new Loader(LOADER_OPTIONS).load().then(() => {
   const maps: google.maps.Map[] = [];
 
-  const panels: [Element, AbstractAlgorithm, string][] = [
+  const panels: [HTMLElement, AbstractAlgorithm, string][] = [
     [
       document.getElementById("noop"),
       new NoopAlgorithm({}),
