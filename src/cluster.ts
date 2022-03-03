@@ -75,4 +75,8 @@ export class Cluster {
     }
     this.markers.length = 0;
   }
+
+  public getCacheKey(): string {
+    return `${this.count} @ ${this.position}`;
+  }
 }

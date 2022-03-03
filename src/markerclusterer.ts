@@ -183,9 +183,10 @@ export class MarkerClusterer extends OverlayViewSafe {
           // this is the first render, remove all initial markers
           this.reset();
         }
+
         // remember the previously rendered cluster markers
         this.markerCache = new Map(
-          this.clusters.map((c) => [c.toString(), c.marker])
+          this.clusters.map((c) => [c.getCacheKey(), c.marker])
         );
 
         // store new clusters
@@ -224,7 +225,7 @@ export class MarkerClusterer extends OverlayViewSafe {
     // generate stats to pass to renderers
     const stats = new ClusterStats(this.markers, this.clusters);
     const map = this.getMap() as google.maps.Map;
-
+    const added: google.maps.Marker[] = [];
     if (!this.markerCache) {
       // Create the cache if it doesn't exist yet. Will only happen during tests,
       // when renderClusters is called directly.
@@ -254,26 +255,36 @@ export class MarkerClusterer extends OverlayViewSafe {
       }
 
       // look up previously rendered marker...
-      const key = cluster.toString();
+      const key = cluster.getCacheKey();
       const existing = this.markerCache.get(key);
 
-      // remove it, so we know it has been processed
-      this.markerCache.delete(key);
-
-      if (existing && markersEqual(cluster.marker, existing)) {
-        // reuse the existing marker as it is all the same
-        cluster.marker = existing;
+      if (existing) {
+        if (markersEqual(cluster.marker, existing)) {
+          // reuse the existing marker as it is all the same
+          cluster.marker = existing;
+          this.markerCache.delete(key);
+        } else {
+          added.push(cluster.marker);
+        }
       } else {
-        // remove the previous marker and add the new one
-        if (existing) existing.setMap(null);
-        cluster.marker.setMap(map);
+        // add the new marker
+        added.push(cluster.marker);
       }
     });
 
-    // finally remove all previous markers that no longer exist
-    this.markerCache.forEach((marker) => {
-      marker.setMap(null);
+    // remember the markers to be removed and create a new empty cache
+    const removed = this.markerCache;
+    this.markerCache = new Map();
+
+    // finally update the map
+    requestAnimationFrame(() => {
+      added.forEach((m) => m.setMap(map));
+      // defer the removal for a smoother transition...
+      setTimeout(() => {
+        removed.forEach((marker) => {
+          marker.setMap(null);
+        });
+      }, 100);
     });
-    this.markerCache.clear();
   }
 }
