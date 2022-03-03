@@ -87,9 +87,9 @@ export class SuperClusterAlgorithm extends AbstractAlgorithm {
     if (changed) {
       const prevClusters = this.clusters;
       this.clusters = this.cluster(input);
-      if (this.clusters.length === prevClusters.length) {
+      if (this.clusters?.length === prevClusters?.length) {
         // number of clusters hasn't changed, check if they are all the same as before
-        changed = this.clusters.some(
+        changed = this.clusters?.some(
           (c, i) => c.toString() !== prevClusters[i].toString()
         );
       }
