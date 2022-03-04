@@ -239,7 +239,11 @@ export class MarkerClusterer extends OverlayViewSafe {
           cluster.marker.setMap(map);
         } else {
           // find a marker we can reuse
-          const existing = getNearestMarker(availableMarkers, cluster.position);
+          const existing = getNearestMarker(
+            availableMarkers,
+            cluster.position,
+            this.getProjection()
+          );
           if (existing) {
             // update the existing marker
             existing.setOptions(marker);
@@ -277,14 +281,8 @@ export class MarkerClusterer extends OverlayViewSafe {
       this.clusters.filter((c) => c.markers.length > 1).map((c) => c.marker)
     );
 
-    // schedule the removal of all obsolete markers
-    if (obsoleteMarkers) {
-      // doing this immediately would cause flicker as removal is faster than the update
-      requestAnimationFrame(() => {
-        obsoleteMarkers.forEach((marker) => {
-          marker.setMap(null);
-        });
-      });
-    }
+    obsoleteMarkers?.forEach((marker) => {
+      marker.setMap(null);
+    });
   }
 }

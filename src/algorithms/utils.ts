@@ -116,26 +116,28 @@ export const pixelBoundsToLatLngBounds = (
   return bounds;
 };
 
-const toLiteral = (p: google.maps.LatLng) => ({ lat: p.lat(), lng: p.lng() });
-
 export const getNearestMarker = (
   markers: Iterable<google.maps.Marker> | undefined,
-  position: google.maps.LatLng
+  position: google.maps.LatLng,
+  projection: google.maps.MapCanvasProjection,
+  threshold = 45
 ): google.maps.Marker | undefined => {
   if (!markers) return;
-  const point = toLiteral(position);
+  const point = projection.fromLatLngToContainerPixel(position);
   let shortestDistance = Number.MAX_VALUE;
   let nearest: google.maps.Marker;
   for (const marker of markers) {
-    const distance = distanceBetweenPoints(
-      point,
-      toLiteral(marker.getPosition())
-    );
+    const pos = projection.fromLatLngToContainerPixel(marker.getPosition());
+    const dx = point.x - pos.x;
+    const dy = point.y - pos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     if (distance < shortestDistance) {
       nearest = marker;
       shortestDistance = distance;
     }
     if (distance === 0) break;
   }
-  return nearest;
+  if (shortestDistance <= threshold) {
+    return nearest;
+  }
 };
