@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { Algorithm, markersEqual, SuperClusterAlgorithm } from "./algorithms";
+import {
+  Algorithm,
+  getNearestMarker,
+  SuperClusterAlgorithm,
+} from "./algorithms";
 import { ClusterStats, DefaultRenderer, Renderer } from "./renderer";
 
 import { Cluster } from "./cluster";
@@ -67,14 +71,14 @@ export class MarkerClusterer extends OverlayViewSafe {
   protected algorithm: Algorithm;
   protected clusters: Cluster[];
   protected markers: google.maps.Marker[];
-  protected markerCache: Map<string, google.maps.Marker>;
+  protected renderedMarkers: Set<google.maps.Marker>;
+  protected renderedClusterMarkers: Set<google.maps.Marker>;
   /** @see {@link MarkerClustererOptions.renderer} */
   protected renderer: Renderer;
   /** @see {@link MarkerClustererOptions.map} */
   protected map: google.maps.Map | null;
   /** @see {@link MarkerClustererOptions.maxZoom} */
   protected idleListener: google.maps.MapsEventListener;
-
   constructor({
     map,
     markers = [],
@@ -179,19 +183,13 @@ export class MarkerClusterer extends OverlayViewSafe {
 
       // allow algorithms to return flag on whether the clusters/markers have changed
       if (changed || changed == undefined) {
-        if (!this.markerCache) {
+        if (!this.renderedMarkers) {
           // this is the first render, remove all initial markers
           this.reset();
         }
 
-        // remember the previously rendered cluster markers
-        this.markerCache = new Map(
-          this.clusters.map((c) => [c.getCacheKey(), c.marker])
-        );
-
         // store new clusters
         this.clusters = clusters;
-
         this.renderClusters();
       }
       google.maps.event.trigger(
@@ -225,20 +223,39 @@ export class MarkerClusterer extends OverlayViewSafe {
     // generate stats to pass to renderers
     const stats = new ClusterStats(this.markers, this.clusters);
     const map = this.getMap() as google.maps.Map;
-    const added: google.maps.Marker[] = [];
-    if (!this.markerCache) {
-      // Create the cache if it doesn't exist yet. Will only happen during tests,
-      // when renderClusters is called directly.
-      this.markerCache = new Map();
-    }
-
+    const obsoleteMarkers = this.renderedMarkers;
+    const availableMarkers = this.renderedClusterMarkers;
     this.clusters.forEach((cluster) => {
       if (cluster.markers.length === 1) {
+        // not clustered, show the original marker
         cluster.marker = cluster.markers[0];
+        cluster.marker.setMap(map);
+        obsoleteMarkers?.delete(cluster.marker);
       } else {
-        cluster.marker = this.renderer.render(cluster, stats);
-
+        const marker = this.renderer.render(cluster, stats);
+        if ("getMap" in marker) {
+          // the renderer returned a marker rather than MarkerOptions
+          cluster.marker = marker;
+          cluster.marker.setMap(map);
+        } else {
+          // find a marker we can reuse
+          const existing = getNearestMarker(availableMarkers, cluster.position);
+          if (existing) {
+            // update the existing marker
+            existing.setOptions(marker);
+            cluster.marker = existing;
+            // remove it from the pool
+            availableMarkers.delete(existing);
+            // delete it from the set so it doesn't get removed later
+            obsoleteMarkers.delete(existing);
+          } else {
+            // no marker available, create a new one
+            cluster.marker = new google.maps.Marker(marker);
+            cluster.marker.setMap(map);
+          }
+        }
         if (this.onClusterClick) {
+          cluster.marker.unbind("click");
           cluster.marker.addListener(
             "click",
             /* istanbul ignore next */
@@ -253,38 +270,21 @@ export class MarkerClusterer extends OverlayViewSafe {
           );
         }
       }
-
-      // look up previously rendered marker...
-      const key = cluster.getCacheKey();
-      const existing = this.markerCache.get(key);
-
-      if (existing) {
-        if (markersEqual(cluster.marker, existing)) {
-          // reuse the existing marker as it is all the same
-          cluster.marker = existing;
-          this.markerCache.delete(key);
-        } else {
-          added.push(cluster.marker);
-        }
-      } else {
-        // add the new marker
-        added.push(cluster.marker);
-      }
     });
 
-    // remember the markers to be removed and create a new empty cache
-    const removed = this.markerCache;
-    this.markerCache = new Map();
+    this.renderedMarkers = new Set(this.clusters.map((c) => c.marker));
+    this.renderedClusterMarkers = new Set(
+      this.clusters.filter((c) => c.markers.length > 1).map((c) => c.marker)
+    );
 
-    // finally update the map
-    requestAnimationFrame(() => {
-      added.forEach((m) => m.setMap(map));
-      // defer the removal for a smoother transition...
-      setTimeout(() => {
-        removed.forEach((marker) => {
+    // schedule the removal of all obsolete markers
+    if (obsoleteMarkers) {
+      // doing this immediately would cause flicker as removal is faster than the update
+      requestAnimationFrame(() => {
+        obsoleteMarkers.forEach((marker) => {
           marker.setMap(null);
         });
-      }, 100);
-    });
+      });
+    }
   }
 }

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import equal from "fast-deep-equal/es6";
-
 export const filterMarkersToPaddedViewport = (
   map: google.maps.Map,
   mapCanvasProjection: google.maps.MapCanvasProjection,
@@ -118,41 +116,26 @@ export const pixelBoundsToLatLngBounds = (
   return bounds;
 };
 
-/**
- * Get all marker properties that should be included in equality checks.
- * @hidden
- */
-function visualMarkerProps(m: google.maps.Marker) {
-  const label = m.getLabel();
-  const title = m.getTitle();
-  const visible = m.getVisible();
-  const zIndex = m.getZIndex();
-  const opacity = m.getOpacity();
-  const shape = m.getShape();
-  let icon = m.getIcon();
-  if (icon && typeof icon === "object" && "url" in icon) {
-    // ignore properties like size that depend on the zoom level
-    const { url, scaledSize, anchor, origin, labelOrigin } = icon;
-    icon = { url, scaledSize, anchor, origin, labelOrigin };
-  }
-  return {
-    icon,
-    label,
-    title,
-    visible,
-    zIndex,
-    opacity,
-    shape,
-  };
-}
+const toLiteral = (p: google.maps.LatLng) => ({ lat: p.lat(), lng: p.lng() });
 
-/**
- * Check if two markers are visually equal.
- * @hidden
- *
- * Note: We can't simply use fast-deep-equal here as some internal properties change upon each render.
- */
-export const markersEqual = (
-  m1: google.maps.Marker,
-  m2: google.maps.Marker
-): boolean => equal(visualMarkerProps(m1), visualMarkerProps(m2));
+export const getNearestMarker = (
+  markers: Iterable<google.maps.Marker> | undefined,
+  position: google.maps.LatLng
+): google.maps.Marker | undefined => {
+  if (!markers) return;
+  const point = toLiteral(position);
+  let shortestDistance = Number.MAX_VALUE;
+  let nearest: google.maps.Marker;
+  for (const marker of markers) {
+    const distance = distanceBetweenPoints(
+      point,
+      toLiteral(marker.getPosition())
+    );
+    if (distance < shortestDistance) {
+      nearest = marker;
+      shortestDistance = distance;
+    }
+    if (distance === 0) break;
+  }
+  return nearest;
+};
