@@ -121,6 +121,7 @@ export class DefaultRenderer implements Renderer {
     <circle cx="120" cy="120" opacity=".6" r="70" />
     <circle cx="120" cy="120" opacity=".3" r="90" />
     <circle cx="120" cy="120" opacity=".2" r="110" />
+    <text x="120" y="120" text-anchor="middle" alignment-baseline="central" font-size="64" font-family="sans-serif" fill="#fff">${count}</text>
   </svg>`);
 
     // create marker using svg icon
@@ -130,14 +131,10 @@ export class DefaultRenderer implements Renderer {
         url: `data:image/svg+xml;base64,${svg}`,
         scaledSize: new google.maps.Size(45, 45),
       },
-      label: {
-        text: String(count),
-        color: "rgba(255,255,255,0.9)",
-        fontSize: "12px",
-      },
-      //title: `Cluster of ${count} markers`,
+      title: `Cluster of ${count} markers`,
       // adjust zIndex to be above other markers
       zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+      optimized: false,
     };
   }
 }
