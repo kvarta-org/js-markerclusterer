@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { Algorithm, SuperClusterAlgorithm } from "./algorithms";
+import {
+  Algorithm,
+  getNearestMarker,
+  SuperClusterAlgorithm,
+} from "./algorithms";
 import { ClusterStats, DefaultRenderer, Renderer } from "./renderer";
 
 import { Cluster } from "./cluster";
@@ -67,13 +71,14 @@ export class MarkerClusterer extends OverlayViewSafe {
   protected algorithm: Algorithm;
   protected clusters: Cluster[];
   protected markers: google.maps.Marker[];
+  protected renderedMarkers: Set<google.maps.Marker>;
+  protected renderedClusterMarkers: Set<google.maps.Marker>;
   /** @see {@link MarkerClustererOptions.renderer} */
   protected renderer: Renderer;
   /** @see {@link MarkerClustererOptions.map} */
   protected map: google.maps.Map | null;
   /** @see {@link MarkerClustererOptions.maxZoom} */
   protected idleListener: google.maps.MapsEventListener;
-
   constructor({
     map,
     markers = [],
@@ -178,12 +183,13 @@ export class MarkerClusterer extends OverlayViewSafe {
 
       // allow algorithms to return flag on whether the clusters/markers have changed
       if (changed || changed == undefined) {
-        // reset visibility of markers and clusters
-        this.reset();
+        if (!this.renderedMarkers) {
+          // this is the first render, remove all initial markers
+          this.reset();
+        }
 
         // store new clusters
         this.clusters = clusters;
-
         this.renderClusters();
       }
       google.maps.event.trigger(
@@ -217,14 +223,43 @@ export class MarkerClusterer extends OverlayViewSafe {
     // generate stats to pass to renderers
     const stats = new ClusterStats(this.markers, this.clusters);
     const map = this.getMap() as google.maps.Map;
-
+    const obsoleteMarkers = this.renderedMarkers;
+    const availableMarkers = this.renderedClusterMarkers;
     this.clusters.forEach((cluster) => {
       if (cluster.markers.length === 1) {
+        // not clustered, show the original marker
         cluster.marker = cluster.markers[0];
+        cluster.marker.setMap(map);
+        obsoleteMarkers?.delete(cluster.marker);
       } else {
-        cluster.marker = this.renderer.render(cluster, stats);
-
+        const marker = this.renderer.render(cluster, stats);
+        if ("getMap" in marker) {
+          // the renderer returned a marker rather than MarkerOptions
+          cluster.marker = marker;
+          cluster.marker.setMap(map);
+        } else {
+          // find a marker we can reuse
+          const existing = getNearestMarker(
+            availableMarkers,
+            cluster.position,
+            this.getProjection()
+          );
+          if (existing) {
+            // update the existing marker
+            existing.setOptions(marker);
+            cluster.marker = existing;
+            // remove it from the pool
+            availableMarkers.delete(existing);
+            // delete it from the set so it doesn't get removed later
+            obsoleteMarkers.delete(existing);
+          } else {
+            // no marker available, create a new one
+            cluster.marker = new google.maps.Marker(marker);
+            cluster.marker.setMap(map);
+          }
+        }
         if (this.onClusterClick) {
+          cluster.marker.unbind("click");
           cluster.marker.addListener(
             "click",
             /* istanbul ignore next */
@@ -239,8 +274,15 @@ export class MarkerClusterer extends OverlayViewSafe {
           );
         }
       }
+    });
 
-      cluster.marker.setMap(map);
+    this.renderedMarkers = new Set(this.clusters.map((c) => c.marker));
+    this.renderedClusterMarkers = new Set(
+      this.clusters.filter((c) => c.markers.length > 1).map((c) => c.marker)
+    );
+
+    obsoleteMarkers?.forEach((marker) => {
+      marker.setMap(null);
     });
   }
 }

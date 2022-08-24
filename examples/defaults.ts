@@ -37,6 +37,7 @@ new Loader(LOADER_OPTIONS).load().then(() => {
           lng: geometry.coordinates[0],
         },
         map,
+        optimized: false,
       })
   );
 
