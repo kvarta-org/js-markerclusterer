@@ -259,7 +259,7 @@ export class MarkerClusterer extends OverlayViewSafe {
           }
         }
         if (this.onClusterClick) {
-          cluster.marker.unbind("click");
+          google.maps.event.clearListeners(marker, "click");
           cluster.marker.addListener(
             "click",
             /* istanbul ignore next */
